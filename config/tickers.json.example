@@ -1,0 +1,7 @@
+{
+  "tickers": ["ABEO", "BP.L", "SPY"],
+  "groups": {
+    "benchmarks": ["SPY", "IWM", "XBI"],
+    "watchlist": ["ABEO", "ATYR", "AXGN"]
+  }
+}

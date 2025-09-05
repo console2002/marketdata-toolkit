@@ -1,0 +1,24 @@
+[project]
+name = "marketdata-toolkit"
+version = "1.0.0"
+requires-python = ">=3.10"
+description = "Free/no-key market data fetcher with Yahoo primary, Stooq fallback, plus watchlist generator"
+authors = [{ name = "Your Name" }]
+readme = "README.md"
+license = { text = "MIT" }
+dependencies = [
+  "pandas>=2.0,<3.0",
+  "yfinance>=0.2",
+]
+
+[project.optional-dependencies]
+parquet = ["pyarrow>=14.0"]
+yaml = ["PyYAML>=6.0"]
+
+[project.scripts]
+prices = "marketdata.prices:cli"
+watchlist-update = "watchlist.update_watchlist:main"
+
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
