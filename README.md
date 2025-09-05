@@ -31,7 +31,7 @@ Market Data Toolkit is a lightweight Python library and command line interface f
 - Optional JSON/YAML watchlist support
 
 ## 📦 Installation
-Use a virtual environment and install in editable mode from the project root (where `pyproject.toml` is located).
+Use a virtual environment and install in editable mode from the project root (where `pyproject.toml` resides). The project uses a flat layout with an explicit `[tool.setuptools.packages.find]` configuration, so the commands below work once you've cloned the repository root.
 
 ### Linux/macOS
 ```bash
@@ -78,6 +78,8 @@ pip install -e .
 pip install -e .[parquet]   # Parquet support
 pip install -e .[yaml]      # YAML watchlists
 ```
+
+**Troubleshooting:** Errors about "Multiple top-level packages discovered" usually mean the repository wasn't cloned correctly or `pyproject.toml` is missing the `[tool.setuptools.packages.find]` section.
 
 ## 🧪 Running Tests
 ```bash
