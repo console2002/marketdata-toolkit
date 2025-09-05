@@ -56,20 +56,25 @@ If needed, run:
 cd D:\GitHub\marketdata-toolkit
 ```
 Then run:
-```powershell
+
 # create virtual environment in .venv
+```powershell
 py -3 -m venv .venv
-
-# activate it
+```
+ activate it
+```powershell
 .\.venv\Scripts\Activate.ps1
-
-# upgrade pip & tools
+```
+ upgrade pip & tools
+```powershell
 python -m pip install -U pip setuptools wheel
-
-# install core package in editable mode
+```
+install core package in editable mode
+```powershell
 pip install -e .
-
-# optional extras
+```
+ optional extras
+```powershell
 pip install -e .[parquet]   # Parquet support
 pip install -e .[yaml]      # YAML watchlists
 ```
