@@ -48,12 +48,25 @@ pip install -e .[yaml]      # YAML watchlists
 ```
 
 ### Windows (PowerShell)
-```bash
+
+Open PowerShell **inside the project folder** (e.g. `D:\GitHub\marketdata-toolkit`).  
+If needed, run:
+
+```powershell
+cd D:\GitHub\marketdata-toolkit
+```
+Then run:
+```powershell
+# create virtual environment in .venv
 py -3 -m venv .venv
+
+# activate it
 .\.venv\Scripts\Activate.ps1
+
+# upgrade pip & tools
 python -m pip install -U pip setuptools wheel
 
-# core package
+# install core package in editable mode
 pip install -e .
 
 # optional extras
@@ -69,11 +82,15 @@ pytest
 ## 🚀 Quick Start
 ### Library
 ```python
-from marketdata.prices import fetch
+from marketdata.prices import get_prices, get_latest_close
 
-# Fetch prices for multiple tickers
-prices = fetch(["AAPL", "MSFT"], start="2024-01-01", end="2024-06-01")
-print(prices.head())
+# Fetch OHLCV for multiple tickers
+bars = get_prices(["ABEO", "BP.L"], start="2025-06-01", end="2025-09-05")
+print(bars["ABEO"].tail())
+
+# Latest official close
+asof, px = get_latest_close("ABEO")
+print(asof.date(), px)
 ```
 
 ### CLI
@@ -85,8 +102,17 @@ prices --tickers AAPL MSFT --start 2024-01-01 --end 2024-06-01 --out data.csv
 ## 🧭 Using a Watchlist
 Maintain a watchlist and generate JSON/YAML files for downstream tools.
 ```bash
-watchlist-update --portfolio portfolio.csv --trades trades.csv \
-  --extras config/static_extras.json --out tickers.json
+watchlist-update \
+  --portfolio data/chatgpt_portfolio_update.csv \
+  --trades data/chatgpt_trade_log.csv \
+  --extras config/static_extras.json \
+  --out config/tickers.json
+```
+Then fetch prices using that watchlist:
+```bash
+prices --config config/tickers.json --group watchlist \
+  --start 2025-06-01 --end 2025-09-05 \
+  --out-dir data/ohlcv
 ```
 
 ## 🧰 Project Structure
@@ -126,6 +152,15 @@ Normalized output columns:
 - Retries with exponential backoff before falling back to Stooq
 - Graceful handling of weekend dates and symbol suffixes
 - Logging through Python's standard `logging` module
+Error policy: --on-error raise|warn|ignore (default = warn in CLI, raise in library)
+
+- Logging levels:
+- **INFO** → successful fetch
+- **WARNING** → Yahoo failed, fell back to Stooq
+- **ERROR** → all sources failed
+```bash
+prices --tickers ABEO --start 2025-06-01 --end 2025-09-05 --log-level INFO
+```
 
 ## 📜 License
 This project is licensed under the MIT License.
