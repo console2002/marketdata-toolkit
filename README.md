@@ -31,55 +31,35 @@ Market Data Toolkit is a lightweight Python library and command line interface f
 - Optional JSON/YAML watchlist support
 
 ## 📦 Installation
-Use a virtual environment and install in editable mode from the project root (where `pyproject.toml` resides). The project uses a flat layout with an explicit `[tool.setuptools.packages.find]` configuration, so the commands below work once you've cloned the repository root.
+
+### Windows
+
+1. Download or clone this repository to a folder such as `D:\marketdata-toolkit`.
+2. Double‑click `install.bat`.
+
+The script checks for `pip`, creates a `.venv` virtual environment, upgrades packaging tools, and installs the project in editable mode.
+
+After installation, activate the environment in a new Command Prompt:
+
+```bat
+call .venv\Scripts\activate
+```
 
 ### Linux/macOS
+
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-python -m pip install -U pip setuptools wheel
-
-# core package
+python -m pip install --upgrade pip wheel
 pip install -e .
+```
 
-# optional extras
+Optional extras:
+
+```bash
 pip install -e .[parquet]   # Parquet support
 pip install -e .[yaml]      # YAML watchlists
 ```
-
-### Windows (PowerShell)
-
-Open PowerShell **inside the project folder** (e.g. `D:\GitHub\marketdata-toolkit`).  
-If needed, run:
-
-```powershell
-cd D:\GitHub\marketdata-toolkit
-```
-Then run:
-
-# create virtual environment in .venv
-```powershell
-py -3 -m venv .venv
-```
- activate it
-```powershell
-.\.venv\Scripts\Activate.ps1
-```
- upgrade pip & tools
-```powershell
-python -m pip install -U pip setuptools wheel
-```
-install core package in editable mode
-```powershell
-pip install -e .
-```
- optional extras
-```powershell
-pip install -e .[parquet]   # Parquet support
-pip install -e .[yaml]      # YAML watchlists
-```
-
-**Troubleshooting:** Errors about "Multiple top-level packages discovered" usually mean the repository wasn't cloned correctly or `pyproject.toml` is missing the `[tool.setuptools.packages.find]` section.
 
 ## 🧪 Running Tests
 ```bash

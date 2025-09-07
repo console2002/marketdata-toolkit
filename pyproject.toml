@@ -5,7 +5,7 @@ requires-python = ">=3.10"
 description = "Free/no-key market data fetcher with Yahoo primary, Stooq fallback, plus watchlist generator"
 authors = [{ name = "Your Name" }]
 readme = "README.md"
-license = { text = "MIT" }
+license = "MIT"
 dependencies = [
   "pandas>=2.0,<3.0",
   "yfinance>=0.2",
@@ -18,6 +18,9 @@ yaml = ["PyYAML>=6.0"]
 [project.scripts]
 prices = "marketdata.prices:cli"
 watchlist-update = "watchlist.update_watchlist:main"
+
+[tool.setuptools]
+packages = ["marketdata", "watchlist"]
 
 [build-system]
 requires = ["setuptools", "wheel"]
