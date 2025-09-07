@@ -141,9 +141,17 @@ def save_prices_csv(bars: Dict[str, pd.DataFrame], out_dir: str, incremental: bo
             if incremental:
                 try:
                     old = pd.read_csv(path, parse_dates=["Date"])
+                    if "Date" not in old.columns and old.index.name == "Date":
+                        old = old.reset_index()
+                except Exception:  # FileNotFoundError or malformed file
+                    old = pd.DataFrame()
+                if not old.empty:
                     df = pd.concat([old, df], ignore_index=True)
-                except FileNotFoundError:
-                    pass
+                if "Date" not in df.columns and df.index.name == "Date":
+                    df = df.reset_index()
+                if "Date" not in df.columns:
+                    log.error("%s: missing 'Date' column", t)
+                    continue
             cols = [
                 "Date",
                 "Open",
