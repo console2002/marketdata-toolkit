@@ -62,11 +62,13 @@ pip install -e .[yaml]      # YAML watchlists
 ```
 
 ## 🧪 Running Tests
-Run the test suite to verify that both the library and CLI are working. The
-tests simulate downloads and write to temporary CSV files.
+Install the test dependency and run the suite to verify that both the library
+and CLI are working. The tests simulate downloads and write to temporary CSV
+files.
 
 ```bash
-pytest
+pip install pytest
+python -m pytest
 ```
 
 ## 🚀 Quick Start
@@ -98,13 +100,19 @@ prices --tickers AAPL MSFT --start 2024-01-01 --end 2024-06-01
 prices --tickers AAPL MSFT --start 2024-01-01 --end 2024-06-01 --table
 ```
 
+International suffixes and weekend end dates are handled automatically:
+
+```bash
+prices --tickers BP.L OR.PA --start 2024-01-01 --end 2024-06-01
+```
+
 **Write CSV/Parquet**
 
 ```bash
 # create data/ if missing and append new rows when incremental
 prices --tickers AAPL MSFT --start 2024-01-01 --end 2024-06-01 --out-dir data --incremental
 
-# Parquet instead of CSV
+# Parquet instead of CSV (requires `pip install -e .[parquet]`)
 prices --tickers AAPL MSFT --start 2024-01-01 --end 2024-06-01 --out-dir data --format parquet
 ```
 

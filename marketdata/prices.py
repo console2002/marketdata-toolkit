@@ -128,6 +128,14 @@ def save_prices_csv(bars: Dict[str, pd.DataFrame], out_dir: str, incremental: bo
     for t, df in bars.items():
         if df.empty:
             continue
+
+        if "Date" not in df.columns:
+            if df.index.name == "Date":
+                df = df.reset_index()
+            else:  # pragma: no cover - unexpected schema
+                log.error("%s: missing 'Date' column", t)
+                continue
+
         path = f"{out_dir}/{t.replace('^','_')}_D.csv"
         try:
             if incremental:
