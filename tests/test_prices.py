@@ -70,6 +70,30 @@ def test_get_prices_schema(monkeypatch):
     assert df["Source"].iloc[0] == "yahoo"
 
 
+def test_get_prices_index_without_name(monkeypatch):
+    def fake_yf_download(*args, **kwargs):
+        df = pd.DataFrame(
+            {
+                "Open": [1.0],
+                "High": [1.0],
+                "Low": [1.0],
+                "Close": [1.0],
+                "Adj Close": [1.0],
+                "Volume": [0],
+            },
+            index=[pd.Timestamp("2024-01-05")],
+        )
+        # Intentionally leave index name unset
+        return df
+
+    monkeypatch.setattr("yfinance.download", fake_yf_download)
+    from marketdata import prices as mp
+
+    bars = mp.get_prices(["AAPL"], start="2024-01-01", end="2024-01-06")
+    df = bars["AAPL"]
+    assert "Date" in df.columns
+    assert df["Ticker"].iloc[0] == "AAPL"
+
 def test_save_prices_csv_bad_existing(tmp_path):
     from marketdata.prices import save_prices_csv
 
