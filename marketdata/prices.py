@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
 import sys
 from typing import Dict, List
 
@@ -58,6 +59,7 @@ def get_prices(
 
 def save_prices_csv(bars: Dict[str, pd.DataFrame], out_dir: str, incremental: bool = True) -> List[str]:
     paths: List[str] = []
+    os.makedirs(out_dir, exist_ok=True)
     for t, df in bars.items():
         if df.empty:
             continue
@@ -80,6 +82,7 @@ def save_prices_csv(bars: Dict[str, pd.DataFrame], out_dir: str, incremental: bo
 
 def save_prices_parquet(bars: Dict[str, pd.DataFrame], out_dir: str) -> List[str]:
     paths: List[str] = []
+    os.makedirs(out_dir, exist_ok=True)
     for t, df in bars.items():
         if df.empty:
             continue
@@ -98,10 +101,14 @@ def main(argv: list[str] | None = None) -> int:
         prog="prices",
         description="Fetch OHLCV via Yahoo and save optional CSV/Parquet.",
     )
-    p.add_argument("--tickers", help="Comma-separated symbols (Yahoo format)")
+    p.add_argument(
+        "--tickers",
+        nargs="+",
+        help="Symbols (Yahoo format). Separate with spaces or commas.",
+    )
     p.add_argument("--start", required=True)
     p.add_argument("--end", required=True)
-    p.add_argument("--out-dir", default="")
+    p.add_argument("--out-dir", "--out", dest="out_dir", default="")
     p.add_argument("--format", choices=["csv", "parquet"], default="csv")
     p.add_argument("--on-error", choices=["raise", "warn", "ignore"], default="warn")
     p.add_argument("--incremental", action="store_true")
@@ -110,9 +117,15 @@ def main(argv: list[str] | None = None) -> int:
     args = p.parse_args(argv)
     logging.basicConfig(level=getattr(logging, args.log_level.upper(), logging.INFO))
 
+    if args.out_dir and args.out_dir.endswith(".csv"):
+        p.error("--out-dir expects a directory, not a file name")
+
     tickers: List[str] = []
     if args.tickers:
-        tickers.extend([t.strip().upper() for t in args.tickers.split(",") if t.strip()])
+        for group in args.tickers:
+            tickers.extend(
+                [t.strip().upper() for t in group.split(",") if t.strip()]
+            )
     tickers = sorted(set(tickers))
     if not tickers:
         p.error("No tickers provided. Use --tickers.")
