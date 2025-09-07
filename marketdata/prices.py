@@ -57,6 +57,22 @@ def get_prices(
     return data
 
 
+def get_latest_close(ticker: str, *, on_error: str = "warn") -> tuple[pd.Timestamp, float]:
+    """Return the latest official close for ``ticker``.
+
+    A small window is fetched to cover weekends and holidays. Raises
+    ``ValueError`` if no data is returned.
+    """
+    today = pd.Timestamp.today().normalize()
+    start = today - pd.Timedelta(days=7)
+    bars = get_prices([ticker], start=str(start.date()), end=str(today.date()), on_error=on_error)
+    df = bars.get(ticker, pd.DataFrame())
+    if df.empty:
+        raise ValueError(f"No data for {ticker}")
+    last = df.iloc[-1]
+    return last["Date"], float(last["Close"])
+
+
 def save_prices_csv(bars: Dict[str, pd.DataFrame], out_dir: str, incremental: bool = True) -> List[str]:
     paths: List[str] = []
     os.makedirs(out_dir, exist_ok=True)
@@ -113,6 +129,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--on-error", choices=["raise", "warn", "ignore"], default="warn")
     p.add_argument("--incremental", action="store_true")
     p.add_argument("--log-level", default="INFO")
+    p.add_argument("--table", action="store_true", help="Print full tables instead of a summary")
 
     args = p.parse_args(argv)
     logging.basicConfig(level=getattr(logging, args.log_level.upper(), logging.INFO))
@@ -142,8 +159,15 @@ def main(argv: list[str] | None = None) -> int:
         successes = len(paths)
     else:
         for t, df in bars.items():
-            src = df["Source"].iloc[-1] if not df.empty else "NA"
-            print(f"{t}: rows={len(df)} source={src}")
+            if args.table:
+                if df.empty:
+                    print(f"{t}: no data")
+                else:
+                    print(f"{t}:")
+                    print(df.to_string(index=False))
+            else:
+                src = df["Source"].iloc[-1] if not df.empty else "NA"
+                print(f"{t}: rows={len(df)} source={src}")
         successes = sum(1 for df in bars.values() if not df.empty)
 
     return 0 if successes > 0 else 2

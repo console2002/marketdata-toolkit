@@ -62,6 +62,9 @@ pip install -e .[yaml]      # YAML watchlists
 ```
 
 ## 🧪 Running Tests
+Run the test suite to verify that both the library and CLI are working. The
+tests simulate downloads and write to temporary CSV files.
+
 ```bash
 pytest
 ```
@@ -82,10 +85,11 @@ print(asof.date(), px)
 
 ### CLI
 
-Fetch data for multiple tickers directly in the terminal:
+Fetch data for multiple tickers directly in the terminal and display the full
+tables on screen:
 
 ```bash
-prices --tickers AAPL MSFT --start 2024-01-01 --end 2024-06-01
+prices --tickers AAPL MSFT --start 2024-01-01 --end 2024-06-01 --table
 ```
 
 Save prices to CSV files (one per ticker). The folder is created if needed and
