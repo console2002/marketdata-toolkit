@@ -1,26 +1,28 @@
 @echo off
-REM Set up a virtual environment and install the marketdata toolkit
+REM Minimal install for marketdata-toolkit (editable mode)
 
 SETLOCAL
 
-python --version >NUL 2>&1
-IF ERRORLEVEL 1 (
-    echo Python is required but was not found in PATH.
-    exit /b 1
-)
+REM --- Pick Python 3.11 if available, else fall back to 'python' ---
+where py >NUL 2>&1 && (set "PY=py -3.11") || (set "PY=python")
 
-python -m ensurepip --upgrade >NUL 2>&1
-
+REM --- Create venv if missing ---
 IF NOT EXIST .venv (
-    python -m venv .venv
+    %PY% -m venv .venv || (echo Failed to create venv & exit /b 1)
 )
 
-CALL .venv\Scripts\activate
+REM --- Activate venv ---
+call .venv\Scripts\activate || (echo Failed to activate venv & exit /b 1)
 
-python -m pip install --upgrade pip wheel
-python -m pip install -e .
+REM --- Upgrade basic tooling ---
+python -m pip install -U pip setuptools wheel || exit /b 1
+
+REM --- Install this repo in editable mode ---
+pip install -e . || exit /b 1
 
 echo.
-echo Installation complete. To activate later run:
+echo Done. To use later:
 echo     call %%~dp0.venv\Scripts\activate
+echo Then run:
+echo     prices --help
 ENDLOCAL

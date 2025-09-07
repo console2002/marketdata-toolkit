@@ -31,6 +31,36 @@ def _weekend_safe_end(end: pd.Timestamp) -> pd.Timestamp:
     return end
 
 
+def _ensure_date_column(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Ensure the DataFrame has a real 'Date' column (not just an index).
+    - If DatetimeIndex or index named 'Date', promote to column.
+    - If reset_index() produced 'index'/'Index', rename to 'Date'.
+    - Coerce Date dtype to datetime64[ns].
+    """
+    if "Date" not in df.columns:
+        # If index is datetime-like or named 'Date', bring it out.
+        if isinstance(df.index, pd.DatetimeIndex) or df.index.name == "Date":
+            df = df.reset_index()
+        # Handle generic reset_index naming
+        if "Index" in df.columns and "Date" not in df.columns:
+            df = df.rename(columns={"Index": "Date"})
+        if "index" in df.columns and "Date" not in df.columns:
+            df = df.rename(columns={"index": "Date"})
+
+    if "Date" not in df.columns:
+        # Last fallback: try a blind reset_index and rename if needed
+        df = df.reset_index()
+        if "Index" in df.columns and "Date" not in df.columns:
+            df = df.rename(columns={"Index": "Date"})
+        if "index" in df.columns and "Date" not in df.columns:
+            df = df.rename(columns={"index": "Date"})
+
+    if "Date" in df.columns:
+        df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
+    return df
+
+
 def get_prices(
     tickers: List[str],
     start: str,
@@ -38,20 +68,27 @@ def get_prices(
     *,
     on_error: str = "warn",
 ) -> Dict[str, pd.DataFrame]:
-    """Fetch daily OHLCV bars via Yahoo with Stooq fallback."""
+    """Fetch daily OHLCV bars via Yahoo with Stooq fallback.
+
+    Guarantees returned frames have columns:
+    ['Date','Open','High','Low','Close','Adj Close','Volume','Ticker','Source'].
+    """
     start_dt = pd.Timestamp(start)
     end_dt = _weekend_safe_end(pd.Timestamp(end))
     data: Dict[str, pd.DataFrame] = {}
+
     for t in tickers:
         df = pd.DataFrame()
         src = ""
         last_err = None
+
+        # --- Yahoo first, with retries ---
         for attempt in range(3):
             try:
                 df = yf.download(
                     t,
                     start=start_dt,
-                    end=end_dt + pd.Timedelta(days=1),
+                    end=end_dt + pd.Timedelta(days=1),  # yfinance end is exclusive
                     progress=False,
                     auto_adjust=False,
                 )
@@ -65,6 +102,7 @@ def get_prices(
             if last_err is not None:
                 log.warning("%s: yahoo fetch failed (%s)", t, last_err)
 
+        # --- Stooq fallback if needed ---
         if df.empty:
             try:
                 sym = _stooq_symbol(t)
@@ -73,6 +111,7 @@ def get_prices(
                 sdf = sdf[(sdf["Date"] >= start_dt) & (sdf["Date"] <= end_dt)]
                 if not sdf.empty:
                     sdf = sdf.rename(columns=str.title)
+                    # Stooq doesn't provide Adj Close; replicate Close.
                     sdf["Adj Close"] = sdf["Close"]
                     df = sdf
                     src = "stooq"
@@ -86,29 +125,52 @@ def get_prices(
                 continue
 
         if not df.empty:
-            if "Date" not in df.columns:
-                df.reset_index(inplace=True)
+            # --- Normalize schema ---
+            # yfinance returns DatetimeIndex; promote and standardize.
+            df = _ensure_date_column(df)
+            # Title-case all columns to match desired schema
             df = df.rename(columns=str.title)
-            if "Date" not in df.columns and "Index" in df.columns:
-                df = df.rename(columns={"Index": "Date"})
-            if "Date" not in df.columns:
-                log.error("%s: missing 'Date' column", t)
-                data[t] = pd.DataFrame()
-                continue
-            df = df.assign(Ticker=t.upper(), Source=src)
-            cols = [
-                "Date",
-                "Open",
-                "High",
-                "Low",
-                "Close",
-                "Adj Close",
-                "Volume",
-                "Ticker",
-                "Source",
-            ]
-            df = df[cols]
+
+            # Verify required columns exist; create/align where possible.
+            required_price_cols = ["Open", "High", "Low", "Close"]
+            for col in required_price_cols:
+                if col not in df.columns:
+                    log.error("%s: missing '%s' column", t, col)
+                    data[t] = pd.DataFrame()
+                    break
+            else:
+                # Adj Close may be missing (e.g., some sources); create if needed
+                if "Adj Close" not in df.columns and "Close" in df.columns:
+                    df["Adj Close"] = df["Close"]
+
+                # Volume may be missing for some symbols; fill with 0 if absent
+                if "Volume" not in df.columns:
+                    df["Volume"] = 0
+
+                if "Date" not in df.columns:
+                    log.error("%s: missing 'Date' column after normalization", t)
+                    data[t] = pd.DataFrame()
+                    continue
+
+                # Attach metadata
+                df = df.assign(Ticker=t.upper(), Source=src)
+
+                # Reorder/select canonical columns
+                cols = [
+                    "Date",
+                    "Open",
+                    "High",
+                    "Low",
+                    "Close",
+                    "Adj Close",
+                    "Volume",
+                    "Ticker",
+                    "Source",
+                ]
+                df = df[cols]
+
         data[t] = df
+
     return data
 
 
@@ -131,38 +193,28 @@ def get_latest_close(ticker: str, *, on_error: str = "warn") -> tuple[pd.Timesta
 def save_prices_csv(bars: Dict[str, pd.DataFrame], out_dir: str, incremental: bool = True) -> List[str]:
     paths: List[str] = []
     os.makedirs(out_dir, exist_ok=True)
+
     for t, df in bars.items():
         if df.empty:
             continue
 
-        if "Date" not in df.columns:
-            if "Index" in df.columns:
-                df = df.rename(columns={"Index": "Date"})
-            elif df.index.name == "Date":
-                df = df.reset_index()
-            else:  # pragma: no cover - unexpected schema
-                log.error("%s: missing 'Date' column", t)
-                continue
+        # Light guard (get_prices already normalizes).
+        df = _ensure_date_column(df)
 
         path = f"{out_dir}/{t.replace('^','_')}_D.csv"
         try:
             if incremental:
                 try:
                     old = pd.read_csv(path, parse_dates=["Date"])
-                    if "Date" not in old.columns and old.index.name == "Date":
-                        old = old.reset_index()
                 except Exception:  # FileNotFoundError or malformed file
                     old = pd.DataFrame()
+
                 if not old.empty:
                     df = pd.concat([old, df], ignore_index=True)
-                if "Date" not in df.columns:
-                    if "Index" in df.columns:
-                        df = df.rename(columns={"Index": "Date"})
-                    elif df.index.name == "Date":
-                        df = df.reset_index()
-                if "Date" not in df.columns:
-                    log.error("%s: missing 'Date' column", t)
-                    continue
+
+            # De-dupe and sort by Date
+            df = df.drop_duplicates(subset=["Date"], keep="last").sort_values("Date")
+
             cols = [
                 "Date",
                 "Open",
@@ -174,29 +226,47 @@ def save_prices_csv(bars: Dict[str, pd.DataFrame], out_dir: str, incremental: bo
                 "Ticker",
                 "Source",
             ]
-            df = df.drop_duplicates(subset=["Date"], keep="last").sort_values("Date")
             df = df.reindex(columns=cols)
             df.to_csv(path, index=False)
             paths.append(path)
             log.info("%s: wrote %s (%d rows)", t, path, len(df))
         except Exception as e:  # pragma: no cover - filesystem failures
             log.error("%s: failed to write %s (%s)", t, path, str(e))
+
     return paths
 
 
 def save_prices_parquet(bars: Dict[str, pd.DataFrame], out_dir: str) -> List[str]:
     paths: List[str] = []
     os.makedirs(out_dir, exist_ok=True)
+
     for t, df in bars.items():
         if df.empty:
             continue
+
+        # Ensure normalized schema (same as CSV writer).
+        df = _ensure_date_column(df)
+
         path = f"{out_dir}/{t.replace('^','_')}_D.parquet"
         try:
+            cols = [
+                "Date",
+                "Open",
+                "High",
+                "Low",
+                "Close",
+                "Adj Close",
+                "Volume",
+                "Ticker",
+                "Source",
+            ]
+            df = df.reindex(columns=cols)
             df.to_parquet(path, index=False)
             paths.append(path)
             log.info("%s: wrote %s (%d rows)", t, path, len(df))
         except Exception as e:  # pragma: no cover
             log.error("%s: failed to write %s (%s)", t, path, str(e))
+
     return paths
 
 
