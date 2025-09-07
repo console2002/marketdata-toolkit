@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import os
 import sys
+import time
 from typing import Dict, List
 
 import pandas as pd
@@ -36,24 +38,71 @@ def get_prices(
     *,
     on_error: str = "warn",
 ) -> Dict[str, pd.DataFrame]:
-    """Fetch daily OHLCV bars via yfinance."""
+    """Fetch daily OHLCV bars via Yahoo with Stooq fallback."""
     start_dt = pd.Timestamp(start)
     end_dt = _weekend_safe_end(pd.Timestamp(end))
     data: Dict[str, pd.DataFrame] = {}
     for t in tickers:
-        try:
-            df = yf.download(t, start=start_dt, end=end_dt + pd.Timedelta(days=1), progress=False)
-            if not df.empty:
-                df = df.rename(columns=str.title).assign(Source="yahoo")
+        df = pd.DataFrame()
+        src = ""
+        last_err = None
+        for attempt in range(3):
+            try:
+                df = yf.download(
+                    t,
+                    start=start_dt,
+                    end=end_dt + pd.Timedelta(days=1),
+                    progress=False,
+                    auto_adjust=False,
+                )
+                src = "yahoo"
+                break
+            except Exception as e:  # pragma: no cover - network failures
+                last_err = e
+                log.debug("%s: yahoo attempt %d failed (%s)", t, attempt + 1, e)
+                time.sleep(2**attempt)
+        else:
+            if last_err is not None:
+                log.warning("%s: yahoo fetch failed (%s)", t, last_err)
+
+        if df.empty:
+            try:
+                sym = _stooq_symbol(t)
+                sdf = pd.read_csv(f"https://stooq.com/q/d/l/?s={sym}&i=d")
+                sdf["Date"] = pd.to_datetime(sdf["Date"])
+                sdf = sdf[(sdf["Date"] >= start_dt) & (sdf["Date"] <= end_dt)]
+                if not sdf.empty:
+                    sdf = sdf.rename(columns=str.title)
+                    sdf["Adj Close"] = sdf["Close"]
+                    df = sdf
+                    src = "stooq"
+            except Exception as e:  # pragma: no cover - network failures
+                msg = f"{t}: {e}"
+                if on_error == "raise":
+                    raise
+                if on_error == "warn":
+                    log.warning(msg)
+                data[t] = pd.DataFrame()
+                continue
+
+        if not df.empty:
+            if "Date" not in df.columns:
                 df.reset_index(inplace=True)
-            data[t] = df
-        except Exception as e:  # pragma: no cover - network failures
-            msg = f"{t}: {e}"
-            if on_error == "raise":
-                raise
-            if on_error == "warn":
-                log.warning(msg)
-            data[t] = pd.DataFrame()
+            df = df.rename(columns=str.title)
+            df = df.assign(Ticker=t.upper(), Source=src)
+            cols = [
+                "Date",
+                "Open",
+                "High",
+                "Low",
+                "Close",
+                "Adj Close",
+                "Volume",
+                "Ticker",
+                "Source",
+            ]
+            df = df[cols]
+        data[t] = df
     return data
 
 
@@ -87,7 +136,19 @@ def save_prices_csv(bars: Dict[str, pd.DataFrame], out_dir: str, incremental: bo
                     df = pd.concat([old, df], ignore_index=True)
                 except FileNotFoundError:
                     pass
+            cols = [
+                "Date",
+                "Open",
+                "High",
+                "Low",
+                "Close",
+                "Adj Close",
+                "Volume",
+                "Ticker",
+                "Source",
+            ]
             df = df.drop_duplicates(subset=["Date"], keep="last").sort_values("Date")
+            df = df.reindex(columns=cols)
             df.to_csv(path, index=False)
             paths.append(path)
             log.info("%s: wrote %s (%d rows)", t, path, len(df))
@@ -122,6 +183,8 @@ def main(argv: list[str] | None = None) -> int:
         nargs="+",
         help="Symbols (Yahoo format). Separate with spaces or commas.",
     )
+    p.add_argument("--config", help="JSON/YAML watchlist file")
+    p.add_argument("--group", default="watchlist", help="Group name in watchlist config")
     p.add_argument("--start", required=True)
     p.add_argument("--end", required=True)
     p.add_argument("--out-dir", "--out", dest="out_dir", default="")
@@ -143,9 +206,24 @@ def main(argv: list[str] | None = None) -> int:
             tickers.extend(
                 [t.strip().upper() for t in group.split(",") if t.strip()]
             )
-    tickers = sorted(set(tickers))
+    if args.config:
+        with open(args.config, "r", encoding="utf-8") as fh:
+            if args.config.lower().endswith((".yaml", ".yml")):
+                try:
+                    import yaml  # type: ignore
+                except ImportError as e:  # pragma: no cover - optional dep
+                    p.error("PyYAML required for YAML configs")
+                cfg = yaml.safe_load(fh)
+            else:
+                cfg = json.load(fh)
+        groups = cfg.get("groups", {})
+        if args.group and args.group in groups:
+            tickers.extend(groups[args.group])
+        else:
+            tickers.extend(cfg.get("tickers", []))
+    tickers = sorted({t.strip().upper() for t in tickers if t})
     if not tickers:
-        p.error("No tickers provided. Use --tickers.")
+        p.error("No tickers provided. Use --tickers or --config.")
 
     bars = get_prices(tickers, start=args.start, end=args.end, on_error=args.on_error)
 
