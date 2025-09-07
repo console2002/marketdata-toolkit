@@ -68,3 +68,42 @@ def test_get_prices_schema(monkeypatch):
     ]
     assert df["Ticker"].iloc[0] == "AAPL"
     assert df["Source"].iloc[0] == "yahoo"
+
+
+def test_save_prices_csv_bad_existing(tmp_path):
+    from marketdata.prices import save_prices_csv
+
+    # Create a malformed existing CSV file without the expected schema
+    bad = tmp_path / "AAPL_D.csv"
+    bad.write_text("foo,bar\n1,2\n")
+
+    df = pd.DataFrame(
+        {
+            "Date": [pd.Timestamp("2024-01-05")],
+            "Open": [1.0],
+            "High": [1.0],
+            "Low": [1.0],
+            "Close": [1.0],
+            "Adj Close": [1.0],
+            "Volume": [0],
+            "Ticker": ["AAPL"],
+            "Source": ["yahoo"],
+        }
+    )
+
+    paths = save_prices_csv({"AAPL": df}, out_dir=str(tmp_path), incremental=True)
+    assert paths == [str(bad)]
+
+    out = pd.read_csv(paths[0])
+    assert list(out.columns) == [
+        "Date",
+        "Open",
+        "High",
+        "Low",
+        "Close",
+        "Adj Close",
+        "Volume",
+        "Ticker",
+        "Source",
+    ]
+    assert len(out) == 1
