@@ -84,19 +84,28 @@ print(asof.date(), px)
 ```
 
 ### CLI
+The `prices` command either prints data to the terminal or writes it to disk.
+Tickers may be supplied directly or via a JSON/YAML watchlist file using
+`--config` and `--group`.
 
-Fetch data for multiple tickers directly in the terminal and display the full
-tables on screen:
+**Display on screen**
 
 ```bash
+# compact summary
+prices --tickers AAPL MSFT --start 2024-01-01 --end 2024-06-01
+
+# full table output
 prices --tickers AAPL MSFT --start 2024-01-01 --end 2024-06-01 --table
 ```
 
-Save prices to CSV files (one per ticker). The folder is created if needed and
-new rows are appended when `--incremental` is used:
+**Write CSV/Parquet**
 
 ```bash
+# create data/ if missing and append new rows when incremental
 prices --tickers AAPL MSFT --start 2024-01-01 --end 2024-06-01 --out-dir data --incremental
+
+# Parquet instead of CSV
+prices --tickers AAPL MSFT --start 2024-01-01 --end 2024-06-01 --out-dir data --format parquet
 ```
 
 Multiple tickers may be separated by spaces or commas. On Windows, run the
@@ -151,6 +160,7 @@ Normalized output columns:
 | Adj Close | Adjusted close |
 | Volume | Trading volume |
 | Ticker | Symbol identifier |
+| Source | Data provider (yahoo or stooq) |
 
 ## ⚙️ Error Handling & Logging
 - Retries with exponential backoff before falling back to Stooq
