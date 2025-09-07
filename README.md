@@ -121,7 +121,9 @@ commands exactly as shown—do not include leading `#` characters, which are use
 as comments in Unix examples.
 
 ## 🧭 Using a Watchlist
-Maintain a watchlist and generate JSON/YAML files for downstream tools.
+Maintain a watchlist and generate JSON/YAML files for downstream tools. A
+sample file `config/tickers.json.example` is included—copy it to
+`config/tickers.json` or generate your own:
 ```bash
 watchlist-update \
   --portfolio data/chatgpt_portfolio_update.csv \

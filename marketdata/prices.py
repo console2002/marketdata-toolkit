@@ -89,6 +89,12 @@ def get_prices(
             if "Date" not in df.columns:
                 df.reset_index(inplace=True)
             df = df.rename(columns=str.title)
+            if "Date" not in df.columns and "Index" in df.columns:
+                df = df.rename(columns={"Index": "Date"})
+            if "Date" not in df.columns:
+                log.error("%s: missing 'Date' column", t)
+                data[t] = pd.DataFrame()
+                continue
             df = df.assign(Ticker=t.upper(), Source=src)
             cols = [
                 "Date",
@@ -130,7 +136,9 @@ def save_prices_csv(bars: Dict[str, pd.DataFrame], out_dir: str, incremental: bo
             continue
 
         if "Date" not in df.columns:
-            if df.index.name == "Date":
+            if "Index" in df.columns:
+                df = df.rename(columns={"Index": "Date"})
+            elif df.index.name == "Date":
                 df = df.reset_index()
             else:  # pragma: no cover - unexpected schema
                 log.error("%s: missing 'Date' column", t)
@@ -147,8 +155,11 @@ def save_prices_csv(bars: Dict[str, pd.DataFrame], out_dir: str, incremental: bo
                     old = pd.DataFrame()
                 if not old.empty:
                     df = pd.concat([old, df], ignore_index=True)
-                if "Date" not in df.columns and df.index.name == "Date":
-                    df = df.reset_index()
+                if "Date" not in df.columns:
+                    if "Index" in df.columns:
+                        df = df.rename(columns={"Index": "Date"})
+                    elif df.index.name == "Date":
+                        df = df.reset_index()
                 if "Date" not in df.columns:
                     log.error("%s: missing 'Date' column", t)
                     continue
