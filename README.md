@@ -81,10 +81,23 @@ print(asof.date(), px)
 ```
 
 ### CLI
+
+Fetch data for multiple tickers directly in the terminal:
+
 ```bash
-# Download prices to CSV
-prices --tickers AAPL MSFT --start 2024-01-01 --end 2024-06-01 --out data.csv
+prices --tickers AAPL MSFT --start 2024-01-01 --end 2024-06-01
 ```
+
+Save prices to CSV files (one per ticker). The folder is created if needed and
+new rows are appended when `--incremental` is used:
+
+```bash
+prices --tickers AAPL MSFT --start 2024-01-01 --end 2024-06-01 --out-dir data --incremental
+```
+
+Multiple tickers may be separated by spaces or commas. On Windows, run the
+commands exactly as shown—do not include leading `#` characters, which are used
+as comments in Unix examples.
 
 ## 🧭 Using a Watchlist
 Maintain a watchlist and generate JSON/YAML files for downstream tools.
